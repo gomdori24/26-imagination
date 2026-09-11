@@ -17,7 +17,7 @@
 
     <!--여기에 구글 앱스 스크립트 웹앱 URL을 입력하세요-->
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybsG6RjIeKxT3AcsJ9yQEFFcB1p_tYfQp6wS7o1BXCWcV_m2fUo4gx1KEmeuGgs_eZ/exec"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0oNM2OBPCjaEqeL0TlMbLw992XT9faYVlJzc9AE_xaeqxt1haxXmle_XfZ0Ye4A1j/exec"; 
     </script>
 
     <div class="max-w-4xl mx-auto bg-white min-h-screen shadow-md">
@@ -80,6 +80,21 @@
                         <div class="p-5 border rounded-lg bg-gray-50">
                             <label class="block text-lg font-bold mb-2">교사 이름</label>
                             <input type="text" id="resTeacher" required placeholder="예) 홍길동" class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- 무한상상실 사용 여부 추가 -->
+                    <div class="p-5 border rounded-lg bg-gray-50">
+                        <label class="block text-lg font-bold mb-3">무한상상실 사용 여부</label>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <label class="flex items-center gap-2 cursor-pointer bg-white px-4 py-3 rounded border hover:bg-gray-100 flex-1">
+                                <input type="radio" name="roomUsage" value="사용" required class="w-5 h-5 cursor-pointer" checked>
+                                <span class="font-bold">사용</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white px-4 py-3 rounded border hover:bg-gray-100 flex-1">
+                                <input type="radio" name="roomUsage" value="미사용(기자재만 대여)" class="w-5 h-5 cursor-pointer">
+                                <span class="font-bold text-gray-600">미사용(기자재만 대여)</span>
+                            </label>
                         </div>
                     </div>
 
@@ -216,7 +231,6 @@
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth();
 
-        // 학년에서 '기타' 선택 시 반 선택란 숨기기
         document.getElementById('resGrade').addEventListener('change', function() {
             const classContainer = document.getElementById('resClassContainer');
             if (this.value === '기타') {
@@ -226,21 +240,15 @@
             }
         });
 
-        // 날짜 변환 버그 수정 (UTC를 한국 시간인 로컬 시간으로 정확하게 변환)
         function cleanDateString(dateStr) {
             if(!dateStr) return "";
-            
-            // 이미 YYYY-MM-DD 형태면 그대로 사용
             if (typeof dateStr === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(dateStr)) {
                 return dateStr;
             }
-
-            // Date 객체로 변환 시 브라우저 로컬 시간대(한국시간)로 자동 보정됨
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) {
                 return typeof dateStr === 'string' ? dateStr.split('T')[0] : String(dateStr);
             }
-            
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -409,11 +417,15 @@
             dailyRes.forEach(r => {
                 const targetDisplay = r.grade === '기타' ? '기타' : `${r.grade} ${r.classNum}`;
                 const teacherName = r.teacher ? r.teacher : '';
+                const roomUsageDisp = r.roomUsage ? r.roomUsage : '정보 없음'; // 공간 사용 여부 표시
+
+                let usageStyle = r.roomUsage === '사용' ? 'text-blue-700 bg-blue-100' : 'text-gray-700 bg-gray-200';
 
                 list.innerHTML += `
-                    <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 mb-3">
+                    <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 mb-3 relative">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-xl font-bold text-gray-800">${targetDisplay}</span>
+                            <span class="px-3 py-1 rounded text-sm font-bold ${usageStyle}">${roomUsageDisp}</span>
                         </div>
                         <div class="mb-2 text-lg"><span class="font-bold text-gray-700">담당 교사:</span> ${teacherName}</div>
                         <div class="mb-2 text-lg"><span class="font-bold text-gray-700">사용 교시:</span> ${r.period}</div>
@@ -426,7 +438,6 @@
             document.getElementById('selectedDateSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // --- 예약 저장 및 중복 방지 로직 ---
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -438,18 +449,13 @@
                 return; 
             }
 
-            // 중복 검사 (날짜가 일치하고 교시가 하나라도 겹치는지 확인)
             const hasConflict = reservations.some(r => {
                 if (r.cleanDate !== selectedDate) return false;
                 
-                // 시트에 저장되어 있는 기존 교시 텍스트(예: "14:30~15:20, 15:30~16:30") 분리
                 const reservedPeriods = String(r.period || "").split(',').map(s => s.trim());
-                
-                // 이번에 선택한 교시 중 하나라도 기존 교시에 포함되어 있다면 true 반환
                 return selectedPeriodValues.some(sp => reservedPeriods.includes(sp));
             });
 
-            // 겹친다면 알림창을 띄우고 저장 중단
             if (hasConflict) {
                 alert("일정이 중복됩니다. 달력에서 예약 현황을 살펴보고 다시 시도해주세요.");
                 return; 
@@ -466,6 +472,9 @@
                 return el.value;
             }).join(", ");
             
+            // 라디오 버튼(공간 사용 여부) 선택 값 가져오기
+            const selectedRoomUsage = document.querySelector('input[name="roomUsage"]:checked').value;
+
             const btn = e.target.querySelector('button[type="submit"]');
             btn.innerText = "저장 중...";
             btn.disabled = true;
@@ -481,7 +490,8 @@
                 classNum: selectedClass,
                 teacher: document.getElementById('resTeacher').value,
                 equipment: equips,
-                purpose: document.getElementById('resPurpose').value
+                purpose: document.getElementById('resPurpose').value,
+                roomUsage: selectedRoomUsage // 새로 추가된 항목 전송
             };
 
             await fetch(SCRIPT_URL, {
@@ -493,6 +503,9 @@
             alert("예약이 완료되었습니다.");
             e.target.reset();
             
+            // 폼 초기화 시 라디오 버튼 기본값(사용)으로 강제 설정
+            document.querySelector('input[name="roomUsage"][value="사용"]').checked = true;
+
             document.getElementById('resClassContainer').classList.remove('hidden');
             document.querySelectorAll('.count-input').forEach(input => input.classList.add('hidden'));
             
