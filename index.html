@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>무한상상실 활용 대장</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #f3f4f6; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800">
+
+    <!--여기에 구글 앱스 스크립트 배포 후 얻은 웹앱 URL을 입력하세요-->
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7K_xnXEgn4l0X5kDM9I64Vd6qmE3xcQZtcgewFgxtUVMwIyEb150J5N0WL-IQt8FV/exec"; 
+    </script>
+
+    <div class="max-w-4xl mx-auto bg-white min-h-screen shadow-md">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-6 text-center">
+            <h1 class="text-3xl font-bold" id="mainTitle">2026 무한상상실 활용 대<span id="adminTrigger" class="cursor-text">장</span></h1>
+        </header>
+
+        <!-- Tabs -->
+        <div class="flex border-b text-center text-lg bg-gray-50">
+            <div id="tab1-btn" class="flex-1 py-3 cursor-pointer tab-active" onclick="switchTab(1)">사용 방법 안내</div>
+            <div id="tab2-btn" class="flex-1 py-3 cursor-pointer" onclick="switchTab(2)">예약 대장</div>
+            <div id="tab3-btn" class="flex-1 py-3 cursor-pointer" onclick="switchTab(3)">달력</div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="p-6">
+            <div id="loading" class="text-center text-blue-500 font-bold py-10">데이터를 불러오는 중입니다...</div>
+            
+            <!-- Tab 1: Guide -->
+            <div id="tab1" class="hidden">
+                <div id="guideContent" class="prose max-w-none whitespace-pre-wrap leading-relaxed text-lg p-4 bg-blue-50 rounded-lg border border-blue-100"></div>
+            </div>
+
+            <!-- Tab 2: Reservation Form -->
+            <div id="tab2" class="hidden">
+                <form id="reservationForm" class="space-y-6">
+                    <div class="p-5 border rounded-lg bg-gray-50">
+                        <label class="block text-lg font-bold mb-2">날짜</label>
+                        <input type="date" id="resDate" required class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div class="p-5 border rounded-lg bg-gray-50">
+                        <label class="block text-lg font-bold mb-2">사용 교시 (중복 선택 가능)</label>
+                        <div id="resPeriods" class="flex flex-wrap gap-3"></div>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="p-5 border rounded-lg bg-gray-50 flex-1">
+                            <label class="block text-lg font-bold mb-2">학년</label>
+                            <select id="resGrade" class="w-full p-3 border rounded text-lg">
+                                <option value="1학년">1학년</option>
+                                <option value="2학년">2학년</option>
+                                <option value="3학년">3학년</option>
+                                <option value="4학년">4학년</option>
+                                <option value="5학년">5학년</option>
+                                <option value="6학년" selected>6학년</option>
+                            </select>
+                        </div>
+                        <div class="p-5 border rounded-lg bg-gray-50 flex-1">
+                            <label class="block text-lg font-bold mb-2">반</label>
+                            <select id="resClass" class="w-full p-3 border rounded text-lg">
+                                <option value="1반">1반</option><option value="2반">2반</option>
+                                <option value="3반">3반</option><option value="4반">4반</option>
+                                <option value="5반">5반</option><option value="6반">6반</option>
+                                <option value="7반">7반</option><option value="8반">8반</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="p-5 border rounded-lg bg-gray-50">
+                        <label class="block text-lg font-bold mb-2">사용 기자재 (중복 선택 가능)</label>
+                        <div id="resEquipments" class="flex flex-wrap gap-3"></div>
+                    </div>
+
+                    <div class="p-5 border rounded-lg bg-gray-50">
+                        <label class="block text-lg font-bold mb-2">용도</label>
+                        <input type="text" id="resPurpose" required placeholder="예) 학급 단체 열쇠고리 제작, 메이커 동아리 활동" class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold text-xl py-4 rounded hover:bg-blue-700 transition">예약 제출하기</button>
+                </form>
+            </div>
+
+            <!-- Tab 3: Calendar/List -->
+            <div id="tab3" class="hidden">
+                <div id="reservationList" class="space-y-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Modal -->
+    <div id="adminModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-4">관리자 페이지 (설정)</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block font-bold mb-1">앱 제목</label>
+                    <input type="text" id="adminTitle" class="w-full border p-2 rounded">
+                </div>
+                <div>
+                    <label class="block font-bold mb-1">사용 방법 안내 내용</label>
+                    <textarea id="adminGuide" class="w-full border p-2 rounded h-32"></textarea>
+                </div>
+                
+                <div class="border p-4 rounded bg-gray-50">
+                    <h3 class="font-bold mb-2">교시 설정 (콤마로 구분, 색상코드)</h3>
+                    <p class="text-sm text-gray-500 mb-2">예: 1교시:#ff0000, 2교시:#00ff00</p>
+                    <textarea id="adminPeriods" class="w-full border p-2 rounded h-20"></textarea>
+                </div>
+
+                <div class="border p-4 rounded bg-gray-50">
+                    <h3 class="font-bold mb-2">기자재 설정 (콤마로 구분, 색상코드)</h3>
+                    <textarea id="adminEquipments" class="w-full border p-2 rounded h-20"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-4">
+                    <button onclick="saveAdminSettings()" class="flex-1 bg-green-600 text-white font-bold py-2 rounded">설정 저장하기</button>
+                    <button onclick="document.getElementById('adminModal').classList.add('hidden')" class="flex-1 bg-gray-400 text-white font-bold py-2 rounded">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 기본 설정 데이터 (시트에 데이터가 없을 때 사용)
+        let settings = {
+            title: "2026 무한상상실 활용 대",
+            guide: "무한상상실 사용 전 반드시 안전 수칙을 확인해주세요.\n\n1. 레이저 커터 사용 시 환풍기 가동 필수\n2. 3D 프린터 출력 후 베드 정리\n3. 사용 후 전원 차단 확인",
+            periods: [
+                {name: "1교시", color: "#f87171"}, {name: "2교시", color: "#fb923c"},
+                {name: "3교시", color: "#fbbf24"}, {name: "4교시", color: "#a3e635"},
+                {name: "5교시", color: "#34d399"}, {name: "6교시", color: "#38bdf8"}
+            ],
+            equipments: [
+                {name: "3D 프린터", color: "#8b5cf6"},
+                {name: "데이비드 레이저 커터", color: "#ec4899"},
+                {name: "실루엣 카메오 3", color: "#14b8a6"},
+                {name: "노트북 세트", color: "#64748b"}
+            ]
+        };
+        let reservations = [];
+
+        // 초기 데이터 불러오기
+        async function loadData() {
+            if(SCRIPT_URL === "여기에_구글_앱스_스크립트_URL을_붙여넣으세요") {
+                alert("코드 안에 SCRIPT_URL(구글 웹앱 주소)을 먼저 입력해야 작동합니다!");
+                return;
+            }
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const data = await response.json();
+                
+                if(data.settings && Object.keys(data.settings).length > 0) {
+                    settings = data.settings;
+                }
+                if(data.reservations) {
+                    reservations = data.reservations;
+                }
+                
+                applySettings();
+                renderReservations();
+                document.getElementById('loading').classList.add('hidden');
+                switchTab(1); // 기본 탭 열기
+            } catch (error) {
+                document.getElementById('loading').innerText = "데이터를 불러오는데 실패했습니다. 인터넷 연결을 확인하세요.";
+            }
+        }
+
+        // 탭 전환 로직
+        function switchTab(tabNum) {
+            for(let i=1; i<=3; i++) {
+                document.getElementById(`tab${i}`).classList.add('hidden');
+                document.getElementById(`tab${i}-btn`).classList.remove('tab-active');
+            }
+            document.getElementById(`tab${tabNum}`).classList.remove('hidden');
+            document.getElementById(`tab${tabNum}-btn`).classList.add('tab-active');
+        }
+
+        // 설정 적용하여 화면 그리기
+        function applySettings() {
+            document.getElementById('mainTitle').innerHTML = settings.title + '<span id="adminTrigger" class="cursor-text">장</span>';
+            document.getElementById('adminTrigger').addEventListener('click', openAdminModal);
+            
+            document.getElementById('guideContent').innerText = settings.guide;
+            
+            // 폼 체크박스 생성
+            const periodContainer = document.getElementById('resPeriods');
+            periodContainer.innerHTML = '';
+            settings.periods.forEach(p => {
+                periodContainer.innerHTML += `
+                    <label class="flex items-center gap-2 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-gray-100">
+                        <input type="checkbox" name="period" value="${p.name}" class="w-5 h-5"> 
+                        <span style="color:${p.color}; font-weight:bold;">${p.name}</span>
+                    </label>
+                `;
+            });
+
+            const equipContainer = document.getElementById('resEquipments');
+            equipContainer.innerHTML = '';
+            settings.equipments.forEach(e => {
+                equipContainer.innerHTML += `
+                    <label class="flex items-center gap-2 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-gray-100">
+                        <input type="checkbox" name="equip" value="${e.name}" class="w-5 h-5"> 
+                        <span style="color:${e.color}; font-weight:bold;">${e.name}</span>
+                    </label>
+                `;
+            });
+        }
+
+        // 예약 목록(달력 탭) 그리기
+        function renderReservations() {
+            const list = document.getElementById('reservationList');
+            list.innerHTML = '';
+            
+            // 날짜 최신순 정렬
+            const sorted = [...reservations].sort((a,b) => new Date(b.date) - new Date(a.date));
+            
+            if(sorted.length === 0) {
+                list.innerHTML = '<div class="text-center p-10 text-gray-500">예약 내역이 없습니다.</div>';
+                return;
+            }
+
+            sorted.forEach(r => {
+                list.innerHTML += `
+                    <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xl font-bold">${r.date}</span>
+                            <span class="bg-gray-100 px-3 py-1 rounded text-sm font-bold text-gray-600">${r.grade} ${r.classNum}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="font-bold text-gray-700">사용 교시:</span> ${r.period}
+                        </div>
+                        <div class="mb-2">
+                            <span class="font-bold text-gray-700">기자재:</span> ${r.equipment}
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded mt-3">
+                            <span class="font-bold text-gray-700">용도:</span> ${r.purpose}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 폼 제출 (예약 저장)
+        document.getElementById('reservationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const periods = Array.from(document.querySelectorAll('input[name="period"]:checked')).map(el => el.value).join(", ");
+            const equips = Array.from(document.querySelectorAll('input[name="equip"]:checked')).map(el => el.value).join(", ");
+            
+            if(!periods) { alert("사용 교시를 하나 이상 선택해주세요."); return; }
+            
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerText = "저장 중...";
+            btn.disabled = true;
+
+            const resData = {
+                type: "reservation",
+                date: document.getElementById('resDate').value,
+                period: periods,
+                grade: document.getElementById('resGrade').value,
+                classNum: document.getElementById('resClass').value,
+                equipment: equips,
+                purpose: document.getElementById('resPurpose').value
+            };
+
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(resData)
+            });
+
+            alert("예약이 완료되었습니다.");
+            e.target.reset();
+            btn.innerText = "예약 제출하기";
+            btn.disabled = false;
+            
+            // 데이터 다시 불러오기
+            document.getElementById('loading').classList.remove('hidden');
+            loadData();
+        });
+
+        // 관리자 모달 열기
+        function openAdminModal() {
+            document.getElementById('adminModal').classList.remove('hidden');
+            document.getElementById('adminTitle').value = settings.title;
+            document.getElementById('adminGuide').value = settings.guide;
+            
+            document.getElementById('adminPeriods').value = settings.periods.map(p => `${p.name}:${p.color}`).join(", ");
+            document.getElementById('adminEquipments').value = settings.equipments.map(e => `${e.name}:${e.color}`).join(", ");
+        }
+
+        // 관리자 설정 저장
+        async function saveAdminSettings() {
+            const periodStr = document.getElementById('adminPeriods').value;
+            const equipStr = document.getElementById('adminEquipments').value;
+
+            const newSettings = {
+                title: document.getElementById('adminTitle').value,
+                guide: document.getElementById('adminGuide').value,
+                periods: periodStr.split(',').map(s => {
+                    const parts = s.split(':');
+                    return {name: parts[0].trim(), color: parts[1] ? parts[1].trim() : '#000000'};
+                }).filter(p => p.name),
+                equipments: equipStr.split(',').map(s => {
+                    const parts = s.split(':');
+                    return {name: parts[0].trim(), color: parts[1] ? parts[1].trim() : '#000000'};
+                }).filter(e => e.name)
+            };
+
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ type: "settings", settings: newSettings })
+            });
+
+            alert("설정이 저장되었습니다.");
+            document.getElementById('adminModal').classList.add('hidden');
+            
+            document.getElementById('loading').classList.remove('hidden');
+            loadData();
+        }
+
+        // 최초 실행
+        loadData();
+    </script>
+</body>
+</html>
