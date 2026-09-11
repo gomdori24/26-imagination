@@ -15,7 +15,7 @@
 </head>
 <body class="min-h-screen text-gray-800">
 
-    <!--여기에 새로 발급받은 구글 앱스 스크립트 웹앱 URL을 입력하세요-->
+    <!--여기에 구글 앱스 스크립트 웹앱 URL을 입력하세요-->
     <script>
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybsG6RjIeKxT3AcsJ9yQEFFcB1p_tYfQp6wS7o1BXCWcV_m2fUo4gx1KEmeuGgs_eZ/exec"; 
     </script>
@@ -114,7 +114,7 @@
                     <div id="calendarGrid" class="grid grid-cols-7 bg-gray-200 gap-px"></div>
                 </div>
 
-                <!-- 선택한 날짜의 예약 리스트 (달력 아래에 표시) -->
+                <!-- 선택한 날짜의 예약 리스트 -->
                 <div id="selectedDateSection" class="hidden bg-gray-50 border rounded-lg p-5 mt-4">
                     <div class="flex justify-between items-center mb-4 border-b pb-3">
                         <h3 id="selectedDateTitle" class="text-xl font-bold text-blue-800 border-l-4 border-blue-600 pl-3">선택한 날짜 예약 내역</h3>
@@ -127,7 +127,6 @@
             <!-- Tab 4: 고장 신고 -->
             <div id="tab4" class="hidden">
                 <div class="flex flex-col md:flex-row gap-6">
-                    <!-- 입력 폼 -->
                     <form id="reportForm" class="flex-1 space-y-6">
                         <div class="p-5 border rounded-lg bg-gray-50">
                             <label class="block text-lg font-bold mb-2">고장난 기자재</label>
@@ -140,7 +139,6 @@
                         <button type="submit" class="w-full bg-red-600 text-white font-bold text-xl py-4 rounded hover:bg-red-700 transition">고장 접수하기</button>
                     </form>
                     
-                    <!-- 예시 메모 -->
                     <div class="md:w-1/3 bg-yellow-50 border-l-4 border-yellow-400 p-5 rounded-lg shadow-sm h-fit">
                         <h3 class="text-xl font-bold text-yellow-800 mb-4 flex items-center">
                             <span class="mr-2">💡</span>작성 예시
@@ -148,12 +146,12 @@
                         <div class="text-yellow-900 space-y-5 text-sm leading-relaxed">
                             <div>
                                 <p class="font-bold mb-1">▶ 데이비드 레이저 커터</p>
-                                <p class="bg-white p-3 rounded border border-yellow-200">어제 5교시 동아리 활동 중 아크릴 커팅을 하다가 갑자기 전원이 꺼졌습니다. 다시 켜보려고 했지만 전원 버튼을 눌러도 반응이 없고, 타는 냄새가 약간 났습니다.</p>
+                                <p class="bg-white p-3 rounded border border-yellow-200">어제 5교시 동아리 활동 중 아크릴 커팅을 하다가 갑자기 전원이 꺼졌습니다.</p>
                             </div>
                             <hr class="border-yellow-200">
                             <div>
                                 <p class="font-bold mb-1">▶ 3D 프린터</p>
-                                <p class="bg-white p-3 rounded border border-yellow-200">출력은 진행되는데, 노즐 온도가 190도 이상으로 올라가지 않고 조작 화면에 'Err: MIN TEMP' 오류 메시지가 계속 뜹니다.</p>
+                                <p class="bg-white p-3 rounded border border-yellow-200">출력은 진행되는데, 노즐 온도가 올라가지 않고 오류 메시지가 계속 뜹니다.</p>
                             </div>
                         </div>
                     </div>
@@ -228,13 +226,21 @@
             }
         });
 
+        // 날짜 변환 버그 수정 (UTC를 한국 시간인 로컬 시간으로 정확하게 변환)
         function cleanDateString(dateStr) {
             if(!dateStr) return "";
-            if(typeof dateStr === 'string' && dateStr.includes('T')) {
-                return dateStr.split('T')[0];
+            
+            // 이미 YYYY-MM-DD 형태면 그대로 사용
+            if (typeof dateStr === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(dateStr)) {
+                return dateStr;
             }
+
+            // Date 객체로 변환 시 브라우저 로컬 시간대(한국시간)로 자동 보정됨
             const d = new Date(dateStr);
-            if(isNaN(d.getTime())) return dateStr;
+            if (isNaN(d.getTime())) {
+                return typeof dateStr === 'string' ? dateStr.split('T')[0] : String(dateStr);
+            }
+            
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -420,7 +426,7 @@
             document.getElementById('selectedDateSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // 예약 제출 및 중복 검사 로직
+        // --- 예약 저장 및 중복 방지 로직 ---
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -432,16 +438,21 @@
                 return; 
             }
 
-            // [중복 검사] 같은 날짜에 예약된 내역 중 교시가 겹치는지 확인
+            // 중복 검사 (날짜가 일치하고 교시가 하나라도 겹치는지 확인)
             const hasConflict = reservations.some(r => {
                 if (r.cleanDate !== selectedDate) return false;
-                const reservedPeriods = r.period.split(',').map(s => s.trim());
+                
+                // 시트에 저장되어 있는 기존 교시 텍스트(예: "14:30~15:20, 15:30~16:30") 분리
+                const reservedPeriods = String(r.period || "").split(',').map(s => s.trim());
+                
+                // 이번에 선택한 교시 중 하나라도 기존 교시에 포함되어 있다면 true 반환
                 return selectedPeriodValues.some(sp => reservedPeriods.includes(sp));
             });
 
+            // 겹친다면 알림창을 띄우고 저장 중단
             if (hasConflict) {
                 alert("일정이 중복됩니다. 달력에서 예약 현황을 살펴보고 다시 시도해주세요.");
-                return; // 겹치면 중단
+                return; 
             }
 
             const periodsStr = selectedPeriodValues.join(", ");
@@ -468,7 +479,7 @@
                 period: periodsStr,
                 grade: selectedGrade,
                 classNum: selectedClass,
-                teacher: document.getElementById('resTeacher').value, // 교사 이름 추가
+                teacher: document.getElementById('resTeacher').value,
                 equipment: equips,
                 purpose: document.getElementById('resPurpose').value
             };
@@ -482,7 +493,6 @@
             alert("예약이 완료되었습니다.");
             e.target.reset();
             
-            // 폼 리셋 후 '반' 선택칸 원래대로 되돌리기
             document.getElementById('resClassContainer').classList.remove('hidden');
             document.querySelectorAll('.count-input').forEach(input => input.classList.add('hidden'));
             
