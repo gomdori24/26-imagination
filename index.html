@@ -90,9 +90,31 @@
                 </form>
             </div>
 
-            <!-- Tab 3: Calendar/List -->
-            <div id="tab3" class="hidden">
-                <div id="reservationList" class="space-y-4"></div>
+            <!-- Tab 3: Calendar View -->
+            <div id="tab3" class="hidden space-y-6">
+                <!-- 캘린더 상단 (월 이동) -->
+                <div class="border rounded-lg overflow-hidden shadow-sm">
+                    <div class="flex justify-between items-center bg-blue-50 p-4 border-b">
+                        <button onclick="changeMonth(-1)" class="px-4 py-2 font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-100 transition">&lt; 이전달</button>
+                        <h2 id="calendarMonthLabel" class="text-2xl font-bold text-gray-800">2026년 9월</h2>
+                        <button onclick="changeMonth(1)" class="px-4 py-2 font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-100 transition">다음달 &gt;</button>
+                    </div>
+                    <!-- 요일 헤더 -->
+                    <div class="grid grid-cols-7 text-center font-bold bg-gray-100 py-3 text-gray-700 border-b">
+                        <div class="text-red-500">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="text-blue-500">토</div>
+                    </div>
+                    <!-- 날짜 격자 -->
+                    <div id="calendarGrid" class="grid grid-cols-7 bg-gray-200 gap-px"></div>
+                </div>
+
+                <!-- 선택한 날짜의 예약 리스트 (달력 아래에 표시) -->
+                <div id="selectedDateSection" class="hidden bg-gray-50 border rounded-lg p-5 mt-4">
+                    <div class="flex justify-between items-center mb-4 border-b pb-3">
+                        <h3 id="selectedDateTitle" class="text-xl font-bold text-blue-800 border-l-4 border-blue-600 pl-3">선택한 날짜 예약 내역</h3>
+                        <button onclick="document.getElementById('selectedDateSection').classList.add('hidden')" class="text-gray-500 hover:text-gray-800 font-bold">닫기 ✕</button>
+                    </div>
+                    <div id="reservationList" class="space-y-4"></div>
+                </div>
             </div>
 
             <!-- Tab 4: 고장 신고 -->
@@ -185,6 +207,24 @@
             ]
         };
         let reservations = [];
+        
+        // 캘린더용 날짜 변수
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+
+        // 날짜 변환 함수 (구글 시트의 이상한 날짜 포맷을 yyyy-mm-dd로 잘라냄)
+        function cleanDateString(dateStr) {
+            if(!dateStr) return "";
+            if(typeof dateStr === 'string' && dateStr.includes('T')) {
+                return dateStr.split('T')[0];
+            }
+            const d = new Date(dateStr);
+            if(isNaN(d.getTime())) return dateStr;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
 
         async function loadData() {
             if(SCRIPT_URL === "여기에_구글_앱스_스크립트_URL을_붙여넣으세요") {
@@ -196,10 +236,13 @@
                 const data = await response.json();
                 
                 if(data.settings && Object.keys(data.settings).length > 0) settings = data.settings;
-                if(data.reservations) reservations = data.reservations;
+                if(data.reservations) {
+                    // 예약 데이터 불러올 때 날짜 데이터를 미리 깨끗하게 포맷팅
+                    reservations = data.reservations.map(r => ({ ...r, cleanDate: cleanDateString(r.date) }));
+                }
                 
                 applySettings();
-                renderReservations();
+                renderCalendar(); // 달력 렌더링 호출
                 document.getElementById('loading').classList.add('hidden');
                 switchTab(1); 
             } catch (error) {
@@ -214,6 +257,9 @@
             }
             document.getElementById(`tab${tabNum}`).classList.remove('hidden');
             document.getElementById(`tab${tabNum}-btn`).classList.add('tab-active');
+            
+            // 달력 탭 열면 캘린더 다시 그리기 (혹시 모를 오류 방지)
+            if(tabNum === 3) renderCalendar();
         }
 
         function applySettings() {
@@ -221,7 +267,6 @@
             document.getElementById('adminTrigger').addEventListener('click', openAdminModal);
             document.getElementById('guideContent').innerText = settings.guide;
             
-            // 예약 폼 - 교시 렌더링
             const periodContainer = document.getElementById('resPeriods');
             periodContainer.innerHTML = '';
             settings.periods.forEach(p => {
@@ -233,7 +278,6 @@
                 `;
             });
 
-            // 예약 폼 - 기자재 렌더링
             const equipContainer = document.getElementById('resEquipments');
             equipContainer.innerHTML = '';
             settings.equipments.forEach((e, index) => {
@@ -248,14 +292,12 @@
                 `;
             });
 
-            // 고장 신고 폼 - 기자재 드롭다운 렌더링
             const reportEquipSelect = document.getElementById('reportEquip');
             reportEquipSelect.innerHTML = '';
             settings.equipments.forEach(e => {
                 reportEquipSelect.innerHTML += `<option value="${e.name}">${e.name}</option>`;
             });
 
-            // 기자재 수량 입력 이벤트 리스너 재등록
             document.querySelectorAll('.equip-chk').forEach(chk => {
                 chk.addEventListener('change', function() {
                     const reqCount = this.getAttribute('data-req-count') === 'true';
@@ -277,32 +319,99 @@
             });
         }
 
-        function renderReservations() {
+        // --- 캘린더 그리기 함수 ---
+        function changeMonth(offset) {
+            currentMonth += offset;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            } else if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+            document.getElementById('selectedDateSection').classList.add('hidden'); // 월 변경 시 상세내역 숨김
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            document.getElementById('calendarMonthLabel').innerText = `${currentYear}년 ${currentMonth + 1}월`;
+
+            const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            // 1일 이전의 빈 칸 그리기
+            for (let i = 0; i < firstDayIndex; i++) {
+                grid.innerHTML += `<div class="bg-white min-h-[100px]"></div>`;
+            }
+
+            // 날짜 칸 그리기
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                // 해당 날짜에 예약이 있는지 확인
+                const dayReservations = reservations.filter(r => r.cleanDate === dateStr);
+                
+                let badgeHtml = '';
+                if (dayReservations.length > 0) {
+                    badgeHtml = `<div class="mt-2 text-xs bg-blue-100 text-blue-800 font-bold px-2 py-1 rounded shadow-sm text-center truncate">예약 ${dayReservations.length}건</div>`;
+                }
+
+                // 주말 색상 지정
+                const dayOfWeek = (firstDayIndex + day - 1) % 7;
+                let textColor = "text-gray-800";
+                if (dayOfWeek === 0) textColor = "text-red-500";
+                if (dayOfWeek === 6) textColor = "text-blue-500";
+
+                grid.innerHTML += `
+                    <div onclick="selectDate('${dateStr}')" class="bg-white min-h-[100px] p-2 cursor-pointer hover:bg-blue-50 transition border-transparent border-2 hover:border-blue-300 relative group">
+                        <div class="font-bold text-lg ${textColor}">${day}</div>
+                        ${badgeHtml}
+                    </div>
+                `;
+            }
+
+            // 남은 빈 칸 채우기 (마지막 주)
+            const totalCells = firstDayIndex + daysInMonth;
+            const remainingCells = (7 - (totalCells % 7)) % 7;
+            for (let i = 0; i < remainingCells; i++) {
+                grid.innerHTML += `<div class="bg-white min-h-[100px]"></div>`;
+            }
+        }
+
+        // 특정 날짜 클릭 시 예약 상세 내역 보여주기
+        function selectDate(dateStr) {
+            document.getElementById('selectedDateSection').classList.remove('hidden');
+            document.getElementById('selectedDateTitle').innerText = `${dateStr} 예약 내역`;
+            
             const list = document.getElementById('reservationList');
             list.innerHTML = '';
-            const sorted = [...reservations].sort((a,b) => new Date(b.date) - new Date(a.date));
-            
-            if(sorted.length === 0) {
-                list.innerHTML = '<div class="text-center p-10 text-gray-500">예약 내역이 없습니다.</div>';
+
+            const dailyRes = reservations.filter(r => r.cleanDate === dateStr);
+
+            if(dailyRes.length === 0) {
+                list.innerHTML = '<div class="text-center py-8 text-gray-500 bg-white rounded border">해당 날짜에 예약된 내역이 없습니다.</div>';
                 return;
             }
 
-            sorted.forEach(r => {
+            dailyRes.forEach(r => {
                 list.innerHTML += `
-                    <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500">
+                    <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 mb-3">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-xl font-bold">${r.date}</span>
-                            <span class="bg-gray-100 px-3 py-1 rounded text-sm font-bold text-gray-600">${r.grade} ${r.classNum}</span>
+                            <span class="text-xl font-bold text-gray-800">${r.grade} ${r.classNum}</span>
                         </div>
-                        <div class="mb-2"><span class="font-bold text-gray-700">사용 교시:</span> ${r.period}</div>
-                        <div class="mb-2"><span class="font-bold text-gray-700">기자재:</span> ${r.equipment}</div>
-                        <div class="bg-gray-50 p-3 rounded mt-3"><span class="font-bold text-gray-700">용도:</span> ${r.purpose}</div>
+                        <div class="mb-2 text-lg"><span class="font-bold text-gray-700">사용 교시:</span> ${r.period}</div>
+                        <div class="mb-2 text-lg"><span class="font-bold text-gray-700">기자재:</span> ${r.equipment}</div>
+                        <div class="bg-gray-50 p-3 rounded mt-3 text-lg"><span class="font-bold text-gray-700">용도:</span> ${r.purpose}</div>
                     </div>
                 `;
             });
+            
+            // 내역 부분으로 스크롤 부드럽게 이동
+            document.getElementById('selectedDateSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // 예약 제출
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const periods = Array.from(document.querySelectorAll('input[name="period"]:checked')).map(el => el.value).join(", ");
@@ -348,7 +457,6 @@
             loadData();
         });
 
-        // 고장 신고 제출
         document.getElementById('reportForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
@@ -373,7 +481,6 @@
             btn.disabled = false;
         });
 
-        // --- 관리자 리스트 렌더링 함수 ---
         function createAdminRow(name = '', color = '#000000', isEquip = false, requiresCount = false) {
             const countCheckHTML = isEquip ? 
                 `<label class="flex items-center gap-1 text-sm bg-gray-100 p-1 rounded cursor-pointer">
