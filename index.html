@@ -83,7 +83,7 @@
                         </div>
                     </div>
 
-                    <!-- 무한상상실 사용 여부 추가 -->
+                    <!-- 무한상상실 사용 여부 -->
                     <div class="p-5 border rounded-lg bg-gray-50">
                         <label class="block text-lg font-bold mb-3">무한상상실 사용 여부</label>
                         <div class="flex flex-col sm:flex-row gap-4">
@@ -114,22 +114,18 @@
 
             <!-- Tab 3: Calendar View -->
             <div id="tab3" class="hidden space-y-6">
-                <!-- 캘린더 상단 (월 이동) -->
                 <div class="border rounded-lg overflow-hidden shadow-sm">
                     <div class="flex justify-between items-center bg-blue-50 p-4 border-b">
                         <button onclick="changeMonth(-1)" class="px-4 py-2 font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-100 transition">&lt; 이전달</button>
                         <h2 id="calendarMonthLabel" class="text-2xl font-bold text-gray-800">2026년 9월</h2>
                         <button onclick="changeMonth(1)" class="px-4 py-2 font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-100 transition">다음달 &gt;</button>
                     </div>
-                    <!-- 요일 헤더 -->
                     <div class="grid grid-cols-7 text-center font-bold bg-gray-100 py-3 text-gray-700 border-b">
                         <div class="text-red-500">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="text-blue-500">토</div>
                     </div>
-                    <!-- 날짜 격자 -->
                     <div id="calendarGrid" class="grid grid-cols-7 bg-gray-200 gap-px"></div>
                 </div>
 
-                <!-- 선택한 날짜의 예약 리스트 -->
                 <div id="selectedDateSection" class="hidden bg-gray-50 border rounded-lg p-5 mt-4">
                     <div class="flex justify-between items-center mb-4 border-b pb-3">
                         <h3 id="selectedDateTitle" class="text-xl font-bold text-blue-800 border-l-4 border-blue-600 pl-3">선택한 날짜 예약 내역</h3>
@@ -417,9 +413,9 @@
             dailyRes.forEach(r => {
                 const targetDisplay = r.grade === '기타' ? '기타' : `${r.grade} ${r.classNum}`;
                 const teacherName = r.teacher ? r.teacher : '';
-                const roomUsageDisp = r.roomUsage ? r.roomUsage : '정보 없음'; // 공간 사용 여부 표시
+                const roomUsageDisp = r.roomUsage ? r.roomUsage : '사용'; 
 
-                let usageStyle = r.roomUsage === '사용' ? 'text-blue-700 bg-blue-100' : 'text-gray-700 bg-gray-200';
+                let usageStyle = roomUsageDisp === '사용' ? 'text-blue-700 bg-blue-100' : 'text-gray-700 bg-gray-200';
 
                 list.innerHTML += `
                     <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 mb-3 relative">
@@ -438,6 +434,7 @@
             document.getElementById('selectedDateSection').scrollIntoView({ behavior: 'smooth' });
         }
 
+        // --- 스마트 중복 검사 로직 적용 ---
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -449,15 +446,43 @@
                 return; 
             }
 
+            // 라디오 버튼(공간 사용 여부) 선택 값
+            const selectedRoomUsage = document.querySelector('input[name="roomUsage"]:checked').value;
+            // 선택한 기자재들의 원본 이름만 배열로 추출 (수량 제외)
+            const selectedEquipBaseNames = Array.from(document.querySelectorAll('input[name="equip"]:checked')).map(el => el.value);
+
+            let conflictMsg = "";
+
             const hasConflict = reservations.some(r => {
                 if (r.cleanDate !== selectedDate) return false;
                 
+                // 기존 예약의 교시들과 겹치는지 먼저 확인
                 const reservedPeriods = String(r.period || "").split(',').map(s => s.trim());
-                return selectedPeriodValues.some(sp => reservedPeriods.includes(sp));
+                const periodOverlaps = selectedPeriodValues.some(sp => reservedPeriods.includes(sp));
+                
+                if (periodOverlaps) {
+                    // 1. 공간(무한상상실) 중복 확인: 둘 다 "사용"인 경우에만 겹침 처리
+                    const existingRoomUsage = r.roomUsage || "사용"; // 기존 데이터는 기본적으로 "사용"으로 간주
+                    if (selectedRoomUsage === '사용' && existingRoomUsage === '사용') {
+                        conflictMsg = "일정이 중복됩니다. 해당 교시에 이미 무한상상실 공간 사용 예약이 있습니다.";
+                        return true;
+                    }
+
+                    // 2. 기자재 중복 확인: 교시가 겹치고, 똑같은 기자재를 선택한 경우
+                    const reservedEquipsStr = r.equipment || "";
+                    for (const eq of selectedEquipBaseNames) {
+                        if (reservedEquipsStr.includes(eq)) {
+                            conflictMsg = `기자재 중복입니다! 해당 교시에 이미 '${eq}' 대여/사용 예약이 잡혀있습니다.`;
+                            return true;
+                        }
+                    }
+                }
+                return false;
             });
 
+            // 겹친다면 알림창을 띄우고 저장 중단
             if (hasConflict) {
-                alert("일정이 중복됩니다. 달력에서 예약 현황을 살펴보고 다시 시도해주세요.");
+                alert(conflictMsg);
                 return; 
             }
 
@@ -471,9 +496,6 @@
                 }
                 return el.value;
             }).join(", ");
-            
-            // 라디오 버튼(공간 사용 여부) 선택 값 가져오기
-            const selectedRoomUsage = document.querySelector('input[name="roomUsage"]:checked').value;
 
             const btn = e.target.querySelector('button[type="submit"]');
             btn.innerText = "저장 중...";
@@ -491,7 +513,7 @@
                 teacher: document.getElementById('resTeacher').value,
                 equipment: equips,
                 purpose: document.getElementById('resPurpose').value,
-                roomUsage: selectedRoomUsage // 새로 추가된 항목 전송
+                roomUsage: selectedRoomUsage 
             };
 
             await fetch(SCRIPT_URL, {
@@ -503,9 +525,7 @@
             alert("예약이 완료되었습니다.");
             e.target.reset();
             
-            // 폼 초기화 시 라디오 버튼 기본값(사용)으로 강제 설정
             document.querySelector('input[name="roomUsage"][value="사용"]').checked = true;
-
             document.getElementById('resClassContainer').classList.remove('hidden');
             document.querySelectorAll('.count-input').forEach(input => input.classList.add('hidden'));
             
