@@ -10,15 +10,14 @@
         body { font-family: 'Pretendard', sans-serif; background-color: #f3f4f6; }
         .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: bold; }
         .hidden { display: none; }
-        /* 수량 입력 칸 애니메이션 효과 */
         .count-input { transition: all 0.2s ease-in-out; }
     </style>
 </head>
 <body class="min-h-screen text-gray-800">
 
-    <!--여기에 구글 앱스 스크립트 배포 후 얻은 웹앱 URL을 입력하세요-->
+    <!--여기에 새로 발급받은 구글 앱스 스크립트 웹앱 URL을 입력하세요-->
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyDOfTy8VFlE2NUSIJuw9HvZ9o6JpD_L4qVdMn3P1AICcNWs0fHSxNmXax-6EEiggvx/exec"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwwBwjmygBwPmk5kgBdHF1N9glsTKF9KZhWw0L6g1tBbTPXjF3OuIZadNlE4Pz4sQiX/exec"; 
     </script>
 
     <div class="max-w-4xl mx-auto bg-white min-h-screen shadow-md">
@@ -32,6 +31,7 @@
             <div id="tab1-btn" class="flex-1 py-3 cursor-pointer tab-active" onclick="switchTab(1)">사용 방법 안내</div>
             <div id="tab2-btn" class="flex-1 py-3 cursor-pointer" onclick="switchTab(2)">예약 대장</div>
             <div id="tab3-btn" class="flex-1 py-3 cursor-pointer" onclick="switchTab(3)">달력</div>
+            <div id="tab4-btn" class="flex-1 py-3 cursor-pointer text-red-600" onclick="switchTab(4)">🚨고장</div>
         </div>
 
         <!-- Content Area -->
@@ -93,6 +93,42 @@
             <!-- Tab 3: Calendar/List -->
             <div id="tab3" class="hidden">
                 <div id="reservationList" class="space-y-4"></div>
+            </div>
+
+            <!-- Tab 4: 고장 신고 -->
+            <div id="tab4" class="hidden">
+                <div class="flex flex-col md:flex-row gap-6">
+                    <!-- 입력 폼 -->
+                    <form id="reportForm" class="flex-1 space-y-6">
+                        <div class="p-5 border rounded-lg bg-gray-50">
+                            <label class="block text-lg font-bold mb-2">고장난 기자재</label>
+                            <select id="reportEquip" class="w-full p-3 border rounded text-lg"></select>
+                        </div>
+                        <div class="p-5 border rounded-lg bg-gray-50">
+                            <label class="block text-lg font-bold mb-2">고장 내용 상세</label>
+                            <textarea id="reportDetails" rows="6" required placeholder="어떤 상황에서 어떻게 고장이 났는지 최대한 상세히 적어주세요." class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-red-600 text-white font-bold text-xl py-4 rounded hover:bg-red-700 transition">고장 접수하기</button>
+                    </form>
+                    
+                    <!-- 예시 메모 -->
+                    <div class="md:w-1/3 bg-yellow-50 border-l-4 border-yellow-400 p-5 rounded-lg shadow-sm h-fit">
+                        <h3 class="text-xl font-bold text-yellow-800 mb-4 flex items-center">
+                            <span class="mr-2">💡</span>작성 예시
+                        </h3>
+                        <div class="text-yellow-900 space-y-5 text-sm leading-relaxed">
+                            <div>
+                                <p class="font-bold mb-1">▶ 데이비드 레이저 커터</p>
+                                <p class="bg-white p-3 rounded border border-yellow-200">어제 5교시 동아리 활동 중 아크릴 커팅을 하다가 갑자기 전원이 꺼졌습니다. 다시 켜보려고 했지만 전원 버튼을 눌러도 반응이 없고, 타는 냄새가 약간 났습니다.</p>
+                            </div>
+                            <hr class="border-yellow-200">
+                            <div>
+                                <p class="font-bold mb-1">▶ 3D 프린터</p>
+                                <p class="bg-white p-3 rounded border border-yellow-200">출력은 진행되는데, 노즐 온도가 190도 이상으로 올라가지 않고 조작 화면에 'Err: MIN TEMP' 오류 메시지가 계속 뜹니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -172,7 +208,7 @@
         }
 
         function switchTab(tabNum) {
-            for(let i=1; i<=3; i++) {
+            for(let i=1; i<=4; i++) {
                 document.getElementById(`tab${i}`).classList.add('hidden');
                 document.getElementById(`tab${i}-btn`).classList.remove('tab-active');
             }
@@ -185,7 +221,7 @@
             document.getElementById('adminTrigger').addEventListener('click', openAdminModal);
             document.getElementById('guideContent').innerText = settings.guide;
             
-            // 교시 생성
+            // 예약 폼 - 교시 렌더링
             const periodContainer = document.getElementById('resPeriods');
             periodContainer.innerHTML = '';
             settings.periods.forEach(p => {
@@ -197,7 +233,7 @@
                 `;
             });
 
-            // 기자재 생성 (수량 입력 칸 포함)
+            // 예약 폼 - 기자재 렌더링
             const equipContainer = document.getElementById('resEquipments');
             equipContainer.innerHTML = '';
             settings.equipments.forEach((e, index) => {
@@ -212,7 +248,14 @@
                 `;
             });
 
-            // 체크박스 클릭 시 수량 입력칸 보이기/숨기기 이벤트
+            // 고장 신고 폼 - 기자재 드롭다운 렌더링
+            const reportEquipSelect = document.getElementById('reportEquip');
+            reportEquipSelect.innerHTML = '';
+            settings.equipments.forEach(e => {
+                reportEquipSelect.innerHTML += `<option value="${e.name}">${e.name}</option>`;
+            });
+
+            // 기자재 수량 입력 이벤트 리스너 재등록
             document.querySelectorAll('.equip-chk').forEach(chk => {
                 chk.addEventListener('change', function() {
                     const reqCount = this.getAttribute('data-req-count') === 'true';
@@ -259,13 +302,12 @@
             });
         }
 
+        // 예약 제출
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const periods = Array.from(document.querySelectorAll('input[name="period"]:checked')).map(el => el.value).join(", ");
             if(!periods) { alert("사용 교시를 하나 이상 선택해주세요."); return; }
 
-            // 기자재 텍스트 생성 로직 (수량 포함)
             const equips = Array.from(document.querySelectorAll('input[name="equip"]:checked')).map(el => {
                 const reqCount = el.getAttribute('data-req-count') === 'true';
                 const idx = el.getAttribute('data-index');
@@ -298,9 +340,7 @@
 
             alert("예약이 완료되었습니다.");
             e.target.reset();
-            // 숨겨진 수량 칸들 다시 숨기기 처리
             document.querySelectorAll('.count-input').forEach(input => input.classList.add('hidden'));
-            
             btn.innerText = "예약 제출하기";
             btn.disabled = false;
             
@@ -308,9 +348,33 @@
             loadData();
         });
 
+        // 고장 신고 제출
+        document.getElementById('reportForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerText = "제출 중...";
+            btn.disabled = true;
+
+            const reportData = {
+                type: "report",
+                equipment: document.getElementById('reportEquip').value,
+                details: document.getElementById('reportDetails').value
+            };
+
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(reportData)
+            });
+
+            alert("고장 접수가 시트에 성공적으로 저장되었습니다.");
+            e.target.reset();
+            btn.innerText = "고장 접수하기";
+            btn.disabled = false;
+        });
+
         // --- 관리자 리스트 렌더링 함수 ---
         function createAdminRow(name = '', color = '#000000', isEquip = false, requiresCount = false) {
-            // 기자재일 경우에만 수량입력 체크박스 추가
             const countCheckHTML = isEquip ? 
                 `<label class="flex items-center gap-1 text-sm bg-gray-100 p-1 rounded cursor-pointer">
                     <input type="checkbox" class="item-count-check" ${requiresCount ? 'checked' : ''}> 수량입력
