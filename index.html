@@ -17,7 +17,7 @@
 
     <!--여기에 새로 발급받은 구글 앱스 스크립트 웹앱 URL을 입력하세요-->
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwwBwjmygBwPmk5kgBdHF1N9glsTKF9KZhWw0L6g1tBbTPXjF3OuIZadNlE4Pz4sQiX/exec"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybsG6RjIeKxT3AcsJ9yQEFFcB1p_tYfQp6wS7o1BXCWcV_m2fUo4gx1KEmeuGgs_eZ/exec"; 
     </script>
 
     <div class="max-w-4xl mx-auto bg-white min-h-screen shadow-md">
@@ -56,23 +56,30 @@
                         <div id="resPeriods" class="flex flex-wrap gap-3"></div>
                     </div>
 
-                    <div class="flex gap-4">
-                        <div class="p-5 border rounded-lg bg-gray-50 flex-1">
-                            <label class="block text-lg font-bold mb-2">학년</label>
-                            <select id="resGrade" class="w-full p-3 border rounded text-lg">
-                                <option value="1학년">1학년</option><option value="2학년">2학년</option>
-                                <option value="3학년">3학년</option><option value="4학년">4학년</option>
-                                <option value="5학년">5학년</option><option value="6학년" selected>6학년</option>
-                            </select>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex gap-4">
+                            <div class="p-5 border rounded-lg bg-gray-50 flex-1">
+                                <label class="block text-lg font-bold mb-2">학년</label>
+                                <select id="resGrade" class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="1학년">1학년</option><option value="2학년">2학년</option>
+                                    <option value="3학년">3학년</option><option value="4학년">4학년</option>
+                                    <option value="5학년">5학년</option><option value="6학년" selected>6학년</option>
+                                    <option value="기타">기타</option>
+                                </select>
+                            </div>
+                            <div class="p-5 border rounded-lg bg-gray-50 flex-1" id="resClassContainer">
+                                <label class="block text-lg font-bold mb-2">반</label>
+                                <select id="resClass" class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="1반">1반</option><option value="2반">2반</option>
+                                    <option value="3반">3반</option><option value="4반">4반</option>
+                                    <option value="5반">5반</option><option value="6반">6반</option>
+                                    <option value="7반">7반</option><option value="8반">8반</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="p-5 border rounded-lg bg-gray-50 flex-1">
-                            <label class="block text-lg font-bold mb-2">반</label>
-                            <select id="resClass" class="w-full p-3 border rounded text-lg">
-                                <option value="1반">1반</option><option value="2반">2반</option>
-                                <option value="3반">3반</option><option value="4반">4반</option>
-                                <option value="5반">5반</option><option value="6반">6반</option>
-                                <option value="7반">7반</option><option value="8반">8반</option>
-                            </select>
+                        <div class="p-5 border rounded-lg bg-gray-50">
+                            <label class="block text-lg font-bold mb-2">교사 이름</label>
+                            <input type="text" id="resTeacher" required placeholder="예) 홍길동" class="w-full p-3 border rounded text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                     </div>
 
@@ -208,11 +215,19 @@
         };
         let reservations = [];
         
-        // 캘린더용 날짜 변수
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth();
 
-        // 날짜 변환 함수 (구글 시트의 이상한 날짜 포맷을 yyyy-mm-dd로 잘라냄)
+        // 학년에서 '기타' 선택 시 반 선택란 숨기기
+        document.getElementById('resGrade').addEventListener('change', function() {
+            const classContainer = document.getElementById('resClassContainer');
+            if (this.value === '기타') {
+                classContainer.classList.add('hidden');
+            } else {
+                classContainer.classList.remove('hidden');
+            }
+        });
+
         function cleanDateString(dateStr) {
             if(!dateStr) return "";
             if(typeof dateStr === 'string' && dateStr.includes('T')) {
@@ -237,12 +252,11 @@
                 
                 if(data.settings && Object.keys(data.settings).length > 0) settings = data.settings;
                 if(data.reservations) {
-                    // 예약 데이터 불러올 때 날짜 데이터를 미리 깨끗하게 포맷팅
                     reservations = data.reservations.map(r => ({ ...r, cleanDate: cleanDateString(r.date) }));
                 }
                 
                 applySettings();
-                renderCalendar(); // 달력 렌더링 호출
+                renderCalendar(); 
                 document.getElementById('loading').classList.add('hidden');
                 switchTab(1); 
             } catch (error) {
@@ -258,7 +272,6 @@
             document.getElementById(`tab${tabNum}`).classList.remove('hidden');
             document.getElementById(`tab${tabNum}-btn`).classList.add('tab-active');
             
-            // 달력 탭 열면 캘린더 다시 그리기 (혹시 모를 오류 방지)
             if(tabNum === 3) renderCalendar();
         }
 
@@ -319,7 +332,6 @@
             });
         }
 
-        // --- 캘린더 그리기 함수 ---
         function changeMonth(offset) {
             currentMonth += offset;
             if (currentMonth < 0) {
@@ -330,7 +342,7 @@
                 currentYear++;
             }
             renderCalendar();
-            document.getElementById('selectedDateSection').classList.add('hidden'); // 월 변경 시 상세내역 숨김
+            document.getElementById('selectedDateSection').classList.add('hidden'); 
         }
 
         function renderCalendar() {
@@ -341,16 +353,12 @@
             const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
             const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-            // 1일 이전의 빈 칸 그리기
             for (let i = 0; i < firstDayIndex; i++) {
                 grid.innerHTML += `<div class="bg-white min-h-[100px]"></div>`;
             }
 
-            // 날짜 칸 그리기
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                
-                // 해당 날짜에 예약이 있는지 확인
                 const dayReservations = reservations.filter(r => r.cleanDate === dateStr);
                 
                 let badgeHtml = '';
@@ -358,7 +366,6 @@
                     badgeHtml = `<div class="mt-2 text-xs bg-blue-100 text-blue-800 font-bold px-2 py-1 rounded shadow-sm text-center truncate">예약 ${dayReservations.length}건</div>`;
                 }
 
-                // 주말 색상 지정
                 const dayOfWeek = (firstDayIndex + day - 1) % 7;
                 let textColor = "text-gray-800";
                 if (dayOfWeek === 0) textColor = "text-red-500";
@@ -372,7 +379,6 @@
                 `;
             }
 
-            // 남은 빈 칸 채우기 (마지막 주)
             const totalCells = firstDayIndex + daysInMonth;
             const remainingCells = (7 - (totalCells % 7)) % 7;
             for (let i = 0; i < remainingCells; i++) {
@@ -380,7 +386,6 @@
             }
         }
 
-        // 특정 날짜 클릭 시 예약 상세 내역 보여주기
         function selectDate(dateStr) {
             document.getElementById('selectedDateSection').classList.remove('hidden');
             document.getElementById('selectedDateTitle').innerText = `${dateStr} 예약 내역`;
@@ -396,11 +401,15 @@
             }
 
             dailyRes.forEach(r => {
+                const targetDisplay = r.grade === '기타' ? '기타' : `${r.grade} ${r.classNum}`;
+                const teacherName = r.teacher ? r.teacher : '';
+
                 list.innerHTML += `
                     <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 mb-3">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-xl font-bold text-gray-800">${r.grade} ${r.classNum}</span>
+                            <span class="text-xl font-bold text-gray-800">${targetDisplay}</span>
                         </div>
+                        <div class="mb-2 text-lg"><span class="font-bold text-gray-700">담당 교사:</span> ${teacherName}</div>
                         <div class="mb-2 text-lg"><span class="font-bold text-gray-700">사용 교시:</span> ${r.period}</div>
                         <div class="mb-2 text-lg"><span class="font-bold text-gray-700">기자재:</span> ${r.equipment}</div>
                         <div class="bg-gray-50 p-3 rounded mt-3 text-lg"><span class="font-bold text-gray-700">용도:</span> ${r.purpose}</div>
@@ -408,15 +417,34 @@
                 `;
             });
             
-            // 내역 부분으로 스크롤 부드럽게 이동
             document.getElementById('selectedDateSection').scrollIntoView({ behavior: 'smooth' });
         }
 
+        // 예약 제출 및 중복 검사 로직
         document.getElementById('reservationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const periods = Array.from(document.querySelectorAll('input[name="period"]:checked')).map(el => el.value).join(", ");
-            if(!periods) { alert("사용 교시를 하나 이상 선택해주세요."); return; }
+            
+            const selectedDate = document.getElementById('resDate').value;
+            const selectedPeriodValues = Array.from(document.querySelectorAll('input[name="period"]:checked')).map(el => el.value);
+            
+            if(selectedPeriodValues.length === 0) { 
+                alert("사용 교시를 하나 이상 선택해주세요."); 
+                return; 
+            }
 
+            // [중복 검사] 같은 날짜에 예약된 내역 중 교시가 겹치는지 확인
+            const hasConflict = reservations.some(r => {
+                if (r.cleanDate !== selectedDate) return false;
+                const reservedPeriods = r.period.split(',').map(s => s.trim());
+                return selectedPeriodValues.some(sp => reservedPeriods.includes(sp));
+            });
+
+            if (hasConflict) {
+                alert("일정이 중복됩니다. 달력에서 예약 현황을 살펴보고 다시 시도해주세요.");
+                return; // 겹치면 중단
+            }
+
+            const periodsStr = selectedPeriodValues.join(", ");
             const equips = Array.from(document.querySelectorAll('input[name="equip"]:checked')).map(el => {
                 const reqCount = el.getAttribute('data-req-count') === 'true';
                 const idx = el.getAttribute('data-index');
@@ -431,12 +459,16 @@
             btn.innerText = "저장 중...";
             btn.disabled = true;
 
+            const selectedGrade = document.getElementById('resGrade').value;
+            const selectedClass = selectedGrade === '기타' ? '' : document.getElementById('resClass').value;
+
             const resData = {
                 type: "reservation",
-                date: document.getElementById('resDate').value,
-                period: periods,
-                grade: document.getElementById('resGrade').value,
-                classNum: document.getElementById('resClass').value,
+                date: selectedDate,
+                period: periodsStr,
+                grade: selectedGrade,
+                classNum: selectedClass,
+                teacher: document.getElementById('resTeacher').value, // 교사 이름 추가
                 equipment: equips,
                 purpose: document.getElementById('resPurpose').value
             };
@@ -449,7 +481,11 @@
 
             alert("예약이 완료되었습니다.");
             e.target.reset();
+            
+            // 폼 리셋 후 '반' 선택칸 원래대로 되돌리기
+            document.getElementById('resClassContainer').classList.remove('hidden');
             document.querySelectorAll('.count-input').forEach(input => input.classList.add('hidden'));
+            
             btn.innerText = "예약 제출하기";
             btn.disabled = false;
             
